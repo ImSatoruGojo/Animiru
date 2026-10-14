@@ -9,13 +9,11 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.JsonObject
-import logcat.LogPriority
 import tachiyomi.core.common.util.lang.toLong
-import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
-import tachiyomi.data.MemoColumnAdapter
 import tachiyomi.data.subscribeToList
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.episode.model.EpisodeRemoteUpdate
 import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.repository.EpisodeRepository
 
@@ -26,45 +24,6 @@ class EpisodeRepositoryImpl(
     private val database: Database,
 ) : EpisodeRepository {
 
-    override suspend fun addAll(episodes: List<Episode>): List<Episode> {
-        return try {
-            database.transactionWithResult {
-                episodes.map { episode ->
-                    val episodeId = database.episodesQueries.insertReturningId(
-                        episode.animeId,
-                        episode.url,
-                        episode.name,
-                        episode.scanlator,
-                        episode.seen,
-                        episode.bookmark,
-                        // AY -->
-                        episode.fillermark,
-                        // <-- AY
-                        episode.lastSecondSeen,
-                        // AY -->
-                        episode.totalSeconds,
-                        // <-- AY
-                        episode.episodeNumber,
-                        episode.sourceOrder,
-                        episode.dateFetch,
-                        episode.dateUpload,
-                        episode.version,
-                        // AY -->
-                        episode.summary,
-                        episode.previewUrl,
-                        // <-- AY
-                        episode.memo,
-                    )
-                        .awaitAsOne()
-                    episode.copy(id = episodeId)
-                }
-            }
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e)
-            emptyList()
-        }
-    }
-
     override suspend fun update(episodeUpdate: EpisodeUpdate) {
         partialUpdate(episodeUpdate)
     }
@@ -73,14 +32,77 @@ class EpisodeRepositoryImpl(
         partialUpdate(*episodeUpdates.toTypedArray())
     }
 
+    override suspend fun updateFromRemote(
+        removedIds: List<Long>,
+        added: List<Episode>,
+        updated: List<EpisodeRemoteUpdate>,
+    ): List<Episode> {
+        return database.transactionWithResult {
+            if (removedIds.isNotEmpty()) {
+                database.episodesQueries.removeEpisodesWithIds(removedIds)
+            }
+            val existing = added.map { it.animeId }
+                .distinct()
+                .flatMap { animeId ->
+                    database.episodesQueries
+                        .getEpisodesByAnimeId(animeId, applyScanlatorFilter = false.toLong(), ::mapEpisode)
+                        .awaitAsList()
+                        .map { animeId to it.url }
+                }
+                .toMutableSet()
+            val stored = added.filter { existing.add(it.animeId to it.url) }.map { episode ->
+                val episodeId = database.episodesQueries.insertReturningId(
+                    episode.animeId,
+                    episode.url,
+                    episode.name,
+                    episode.scanlator,
+                    episode.seen,
+                    episode.bookmark,
+                    // AM -->
+                    episode.fillermark,
+                    // <-- AM
+                    episode.lastSecondSeen,
+                    // AM -->
+                    episode.totalSeconds,
+                    // <-- AM
+                    episode.episodeNumber,
+                    episode.sourceOrder,
+                    episode.dateFetch,
+                    episode.dateUpload,
+                    // AM -->
+                    episode.summary,
+                    episode.previewUrl,
+                    // <-- AM
+                    episode.memo,
+                )
+                    .awaitAsOne()
+                episode.copy(id = episodeId)
+            }
+            updated.forEach { episodeUpdate ->
+                database.episodesQueries.updateRemote(
+                    name = episodeUpdate.name,
+                    scanlator = episodeUpdate.scanlator,
+                    episodeNumber = episodeUpdate.episodeNumber,
+                    sourceOrder = episodeUpdate.sourceOrder,
+                    dateUpload = episodeUpdate.dateUpload,
+                    episodeId = episodeUpdate.id,
+                    memo = episodeUpdate.memo,
+                    // AM -->
+                    fillermark = episodeUpdate.fillerMark,
+                    summary = episodeUpdate.summary,
+                    previewUrl = episodeUpdate.previewUrl,
+                    thumbnailLastModifiedAt = episodeUpdate.thumbnailLastModified,
+                    // <-- AM
+                )
+            }
+            stored
+        }
+    }
+
     private suspend fun partialUpdate(vararg episodeUpdates: EpisodeUpdate) {
         database.transaction {
             episodeUpdates.forEach { episodeUpdate ->
                 database.episodesQueries.update(
-                    animeId = episodeUpdate.animeId,
-                    url = episodeUpdate.url,
-                    name = episodeUpdate.name,
-                    scanlator = episodeUpdate.scanlator,
                     seen = episodeUpdate.seen,
                     bookmark = episodeUpdate.bookmark,
                     // AY -->
@@ -90,31 +112,13 @@ class EpisodeRepositoryImpl(
                     // AY -->
                     totalSeconds = episodeUpdate.totalSeconds,
                     // <-- AY
-                    episodeNumber = episodeUpdate.episodeNumber,
-                    sourceOrder = episodeUpdate.sourceOrder,
                     dateFetch = episodeUpdate.dateFetch,
-                    dateUpload = episodeUpdate.dateUpload,
                     episodeId = episodeUpdate.id,
-                    version = episodeUpdate.version,
-                    isSyncing = 0,
-                    // AY -->
-                    summary = episodeUpdate.summary,
-                    previewUrl = episodeUpdate.previewUrl,
-                    // <-- AY
-                    memo = episodeUpdate.memo?.let(MemoColumnAdapter::encode),
                     // AM -->
                     thumbnailLastModifiedAt = episodeUpdate.thumbnailLastModifiedAt,
                     // <-- AM
                 )
             }
-        }
-    }
-
-    override suspend fun removeEpisodesWithIds(episodeIds: List<Long>) {
-        try {
-            database.episodesQueries.removeEpisodesWithIds(episodeIds)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e)
         }
     }
 
@@ -181,9 +185,6 @@ class EpisodeRepositoryImpl(
         sourceOrder: Long,
         dateFetch: Long,
         dateUpload: Long,
-        lastModifiedAt: Long,
-        version: Long,
-        isSyncing: Long,
         // AY -->
         summary: String?,
         previewUrl: String?,
@@ -215,8 +216,6 @@ class EpisodeRepositoryImpl(
         summary = summary,
         previewUrl = previewUrl,
         // <-- AY
-        lastModifiedAt = lastModifiedAt,
-        version = version,
         memo = memo,
         // AM -->
         thumbnailLastModifiedAt = thumbnailLastModifiedAt,

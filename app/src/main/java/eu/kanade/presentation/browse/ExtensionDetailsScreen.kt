@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Launch
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -35,16 +32,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.extension.interactor.ExtensionSourceItem
 import eu.kanade.presentation.browse.components.ExtensionIcon
+import eu.kanade.presentation.browse.components.label
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.WarningBanner
@@ -56,6 +55,9 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.ui.browse.extension.details.ExtensionDetailsViewModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.copyToClipboard
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.automirroredrounded.OpenInNew
+import mihon.icons.materialsymbols.rounded.Settings
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.animiru.AMMR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
@@ -98,7 +100,7 @@ fun ExtensionDetailsScreen(
                                 add(
                                     AppBar.Action(
                                         title = stringResource(MR.strings.action_open_repo),
-                                        icon = Icons.AutoMirrored.Outlined.Launch,
+                                        icon = MaterialSymbols.AutoMirroredRounded.OpenInNew,
                                         onClick = {
                                             uriHandler.openUri(url)
                                         },
@@ -144,7 +146,7 @@ fun ExtensionDetailsScreen(
 @Composable
 private fun ExtensionDetails(
     contentPadding: PaddingValues,
-    extension: Extension.Installed,
+    extension: Extension.Loaded,
     sources: List<ExtensionSourceItem>,
     incognitoMode: Boolean,
     onClickSourcePreferences: (sourceId: Long) -> Unit,
@@ -153,7 +155,8 @@ private fun ExtensionDetails(
     onClickIncognito: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    var showNsfwWarning by remember { mutableStateOf(false) }
+    var showContentWarning by remember { mutableStateOf(false) }
+    val contentWarning = extension.contentWarning.label
 
     ScrollbarLazyColumn(
         contentPadding = contentPadding,
@@ -176,8 +179,8 @@ private fun ExtensionDetails(
                     }
                     Unit
                 }.takeIf { extension.isShared },
-                onClickAgeRating = {
-                    showNsfwWarning = true
+                onClickContentWarning = {
+                    showContentWarning = true
                 },
                 onExtIncognitoChange = onClickIncognito,
             )
@@ -195,10 +198,12 @@ private fun ExtensionDetails(
             )
         }
     }
-    if (showNsfwWarning) {
-        NsfwWarningDialog(
+    if (showContentWarning && contentWarning != null) {
+        ContentWarningDialog(
+            label = contentWarning.title,
+            description = contentWarning.description,
             onClickConfirm = {
-                showNsfwWarning = false
+                showContentWarning = false
             },
         )
     }
@@ -208,12 +213,13 @@ private fun ExtensionDetails(
 private fun DetailsHeader(
     extension: Extension,
     extIncognitoMode: Boolean,
-    onClickAgeRating: () -> Unit,
+    onClickContentWarning: () -> Unit,
     onClickUninstall: () -> Unit,
     onClickAppInfo: (() -> Unit)?,
     onExtIncognitoChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val contentWarning = extension.contentWarning.label
 
     Column {
         Column(
@@ -230,11 +236,11 @@ private fun DetailsHeader(
                             """
                             Extension name: ${extension.name} (lang: ${extension.lang}; package: ${extension.pkgName})
                             Extension version: ${extension.versionName} (lib: ${extension.libVersion}; version code: ${extension.versionCode})
-                            NSFW: ${extension.isNsfw}
+                            Content warning: ${extension.contentWarning}
                             """.trimIndent(),
                         )
 
-                        if (extension is Extension.Installed) {
+                        if (extension is Extension.Loaded) {
                             append("\n\n")
                             appendLine(
                                 """
@@ -278,7 +284,7 @@ private fun DetailsHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(
-                    horizontal = MaterialTheme.padding.extraLarge,
+                    horizontal = MaterialTheme.padding.medium,
                     vertical = MaterialTheme.padding.small,
                 ),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -293,23 +299,20 @@ private fun DetailsHeader(
             InfoDivider()
 
             InfoText(
-                modifier = Modifier.weight(if (extension.isNsfw) 1.5f else 1f),
+                modifier = Modifier.weight(1f),
                 primaryText = LocaleHelper.getSourceDisplayName(extension.lang, context),
                 secondaryText = stringResource(MR.strings.ext_info_language),
             )
 
-            if (extension.isNsfw) {
+            if (contentWarning != null) {
                 InfoDivider()
 
                 InfoText(
                     modifier = Modifier.weight(1f),
-                    primaryText = stringResource(MR.strings.ext_nsfw_short),
-                    primaryTextStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    secondaryText = stringResource(MR.strings.ext_info_age_rating),
-                    onClick = onClickAgeRating,
+                    primaryText = stringResource(contentWarning.title),
+                    primaryTextColor = contentWarning.color,
+                    secondaryText = stringResource(MR.strings.ext_info_warning),
+                    onClick = onClickContentWarning,
                 )
             }
         }
@@ -367,7 +370,7 @@ private fun InfoText(
     primaryText: String,
     secondaryText: String,
     modifier: Modifier = Modifier,
-    primaryTextStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    primaryTextColor: Color = Color.Unspecified,
     onClick: (() -> Unit)? = null,
 ) {
     val clickableModifier = if (onClick != null) {
@@ -384,13 +387,16 @@ private fun InfoText(
         Text(
             text = primaryText,
             textAlign = TextAlign.Center,
-            style = primaryTextStyle,
+            style = MaterialTheme.typography.titleSmall,
+            color = primaryTextColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
 
         Text(
             text = secondaryText + if (onClick != null) " ⓘ" else "",
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
     }
@@ -399,7 +405,9 @@ private fun InfoText(
 @Composable
 private fun InfoDivider() {
     VerticalDivider(
-        modifier = Modifier.height(20.dp),
+        modifier = Modifier
+            .padding(horizontal = MaterialTheme.padding.small)
+            .height(24.dp),
     )
 }
 
@@ -426,7 +434,7 @@ private fun SourceSwitchPreference(
                 if (source.source is ConfigurableAnimeSource) {
                     IconButton(onClick = { onClickSourcePreferences(source.source.id) }) {
                         Icon(
-                            imageVector = Icons.Outlined.Settings,
+                            imageVector = MaterialSymbols.Rounded.Settings,
                             contentDescription = stringResource(MR.strings.label_settings),
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
@@ -445,12 +453,20 @@ private fun SourceSwitchPreference(
 }
 
 @Composable
-private fun NsfwWarningDialog(
+private fun ContentWarningDialog(
+    label: StringResource,
+    description: StringResource,
     onClickConfirm: () -> Unit,
 ) {
     AlertDialog(
+        title = {
+            Text(
+                text = stringResource(label),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        },
         text = {
-            Text(text = stringResource(MR.strings.ext_nsfw_warning))
+            Text(text = stringResource(description))
         },
         confirmButton = {
             TextButton(onClick = onClickConfirm) {

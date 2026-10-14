@@ -31,41 +31,41 @@ class UpdateAnime(
         window: Pair<Long, Long> = fetchInterval.getWindow(dateTime.date, timeZone),
     ): Boolean {
         return animeRepository.update(
-            fetchInterval.toAnimeUpdate(anime, dateTime, timeZone, window),
+            fetchInterval.withFetchInterval(anime, dateTime, timeZone, window),
         )
     }
 
     suspend fun awaitUpdateLastUpdate(animeId: Long): Boolean {
-        return animeRepository.update(AnimeUpdate(id = animeId, lastUpdate = Clock.System.now().toEpochMilliseconds()))
+        return animeRepository.update(
+            AnimeUpdate(animeId) {
+                lastUpdate = Clock.System.now().toEpochMilliseconds()
+            },
+        )
     }
 
     suspend fun awaitUpdateCoverLastModified(animeId: Long): Boolean {
         return animeRepository.update(
-            AnimeUpdate(
-                id = animeId,
-                coverLastModified = Clock.System.now().toEpochMilliseconds(),
-            ),
+            AnimeUpdate(animeId) {
+                coverLastModified = Clock.System.now().toEpochMilliseconds()
+            },
         )
     }
 
     // AY -->
     suspend fun awaitUpdateBackgroundLastModified(animeId: Long): Boolean {
         return animeRepository.update(
-            AnimeUpdate(
-                id = animeId,
-                backgroundLastModified = Clock.System.now().toEpochMilliseconds(),
-            ),
+            AnimeUpdate(animeId) {
+                backgroundLastModified = Clock.System.now().toEpochMilliseconds()
+            },
         )
     }
     // <-- AY
 
     suspend fun awaitUpdateFavorite(animeId: Long, favorite: Boolean): Boolean {
-        val dateAdded = when (favorite) {
-            true -> Clock.System.now().toEpochMilliseconds()
-            false -> 0
+        val update = when (favorite) {
+            true -> AnimeUpdate(animeId) { favoriteAt = Clock.System.now().toEpochMilliseconds() }
+            false -> AnimeUpdate(animeId) { favoriteAt = null }
         }
-        return animeRepository.update(
-            AnimeUpdate(id = animeId, favorite = favorite, dateAdded = dateAdded),
-        )
+        return animeRepository.update(update)
     }
 }

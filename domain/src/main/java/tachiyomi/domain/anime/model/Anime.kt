@@ -23,11 +23,10 @@ import java.io.Serializable as JavaSerializable
 data class Anime(
     val id: Long,
     val source: Long,
-    val favorite: Boolean,
     val lastUpdate: Long,
     val nextUpdate: Long,
     val fetchInterval: Int,
-    val dateAdded: Long,
+    val favoriteAt: Long?,
     val viewerFlags: Long,
     val episodeFlags: Long,
     val coverLastModified: Long,
@@ -49,9 +48,6 @@ data class Anime(
     // <-- AY
     val updateStrategy: AnimeUpdateStrategy,
     val initialized: Boolean,
-    val lastModifiedAt: Long,
-    val favoriteModifiedAt: Long?,
-    val version: Long,
     val notes: String,
     // AY -->
     val fetchType: FetchType,
@@ -64,7 +60,7 @@ data class Anime(
 ) : JavaSerializable {
 
     // AM (CUSTOM_INFORMATION) -->
-    private val customAnimeInfo = if (favorite) {
+    private val customAnimeInfo = if (favoriteAt != null) {
         getCustomAnimeInfo.get(id)
     } else {
         null
@@ -88,6 +84,9 @@ data class Anime(
     val status: Long
         get() = customAnimeInfo?.status ?: ogStatus
     // <-- AM (CUSTOM_INFORMATION)
+
+    val favorite: Boolean
+        get() = favoriteAt != null
 
     val expectedNextUpdate: Instant?
         get() = nextUpdate
@@ -383,11 +382,10 @@ data class Anime(
             ogTitle = "",
             // <-- AM (CUSTOM_INFORMATION)
             source = -1L,
-            favorite = false,
             lastUpdate = 0L,
             nextUpdate = 0L,
             fetchInterval = 0,
-            dateAdded = 0L,
+            favoriteAt = null,
             viewerFlags = 0L,
             episodeFlags = 0L,
             coverLastModified = 0L,
@@ -407,9 +405,6 @@ data class Anime(
             // <-- AY
             updateStrategy = AnimeUpdateStrategy.ALWAYS_UPDATE,
             initialized = false,
-            lastModifiedAt = 0L,
-            favoriteModifiedAt = null,
-            version = 0L,
             notes = "",
             // AY -->
             fetchType = FetchType.Episodes,

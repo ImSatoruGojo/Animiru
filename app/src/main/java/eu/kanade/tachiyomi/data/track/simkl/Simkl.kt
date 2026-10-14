@@ -32,7 +32,7 @@ class Simkl(id: Long) : BaseTracker(id, "Simkl"), Tracker {
 
     private val interceptor by lazy { SimklInterceptor(this) }
 
-    private val api by lazy { SimklApi(client, json, interceptor) }
+    private val api by lazy { SimklApi(id, client, json, interceptor) }
 
     override fun getScoreList(): List<String> = SCORE_LIST
 
@@ -127,9 +127,14 @@ class Simkl(id: Long) : BaseTracker(id, "Simkl"), Tracker {
             val user = api.getCurrentUser()
             saveDisplayUsername(user.user.name)
             saveCredentials(user.account.id.toString(), oauth.accessToken)
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             logout()
         }
+    }
+
+    override suspend fun updateUserConfig() {
+        val user = api.getCurrentUser()
+        saveDisplayUsername(user.user.name)
     }
 
     fun saveToken(oauth: SimklOAuth?) {
@@ -139,7 +144,7 @@ class Simkl(id: Long) : BaseTracker(id, "Simkl"), Tracker {
     fun restoreToken(): SimklOAuth? {
         return try {
             json.decodeFromString<SimklOAuth>(trackPreferences.trackToken(this).get())
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

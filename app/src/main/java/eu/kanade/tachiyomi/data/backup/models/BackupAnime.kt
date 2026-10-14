@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.animesource.model.FetchType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.core.common.extensions.JsonObjectEmptyBytes
+import mihon.core.common.extensions.toJsonObject
 import tachiyomi.data.MemoColumnAdapter
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.CustomAnimeInfo
@@ -39,10 +40,10 @@ data class BackupAnime(
     @ProtoNumber(103) var viewer_flags: Int = 0,
     @ProtoNumber(104) var history: List<BackupHistory> = emptyList(),
     @ProtoNumber(105) var updateStrategy: AnimeUpdateStrategy = AnimeUpdateStrategy.ALWAYS_UPDATE,
-    @ProtoNumber(106) var lastModifiedAt: Long = 0,
+    // @ProtoNumber(106) var lastModifiedAt: Long, artifact of the abandoned sync attempt
     @ProtoNumber(107) var favoriteModifiedAt: Long? = null,
     // Mihon values start here
-    @ProtoNumber(109) var version: Long = 0,
+    // @ProtoNumber(109) var version: Long, artifact of the abandoned sync attempt
     @ProtoNumber(110) var notes: String = "",
     @ProtoNumber(111) var initialized: Boolean = false,
     @ProtoNumber(112) var memo: ByteArray = JsonObjectEmptyBytes,
@@ -88,15 +89,19 @@ data class BackupAnime(
             // AY -->
             backgroundUrl = this@BackupAnime.backgroundUrl,
             // <-- AY
-            favorite = this@BackupAnime.favorite,
             source = this@BackupAnime.source,
-            dateAdded = this@BackupAnime.dateAdded,
+            // For libraries older than dateAdded, the favorite timestamp is the only record of when
+            // an entry was added. It was written by a trigger in seconds, unlike dateAdded.
+            favoriteAt = if (this@BackupAnime.favorite) {
+                this@BackupAnime.dateAdded.takeIf { it != 0L }
+                    ?: this@BackupAnime.favoriteModifiedAt?.times(1000)
+                    ?: 0L
+            } else {
+                null
+            },
             viewerFlags = this@BackupAnime.viewer_flags.toLong(),
             episodeFlags = this@BackupAnime.episodeFlags.toLong(),
             updateStrategy = this@BackupAnime.updateStrategy,
-            lastModifiedAt = this@BackupAnime.lastModifiedAt,
-            favoriteModifiedAt = this@BackupAnime.favoriteModifiedAt,
-            version = this@BackupAnime.version,
             notes = this@BackupAnime.notes,
             initialized = this@BackupAnime.initialized,
             // AY -->
@@ -106,7 +111,7 @@ data class BackupAnime(
             seasonNumber = this@BackupAnime.seasonNumber,
             seasonSourceOrder = this@BackupAnime.seasonSourceOrder,
             // <-- AY
-            memo = MemoColumnAdapter.decode(this@BackupAnime.memo),
+            memo = this@BackupAnime.memo.toJsonObject(),
         )
     }
 

@@ -13,15 +13,15 @@ import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.data.cache.BackgroundCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import logcat.LogPriority
 import mihon.domain.source.interactor.models.RemoteAnimeEpisodeUpdate
 import mihon.domain.source.interactor.models.RemoteAnimeSeasonUpdate
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.episode.EpisodeSanitizer
-import tachiyomi.data.episode.EpisodeSanitizer.sanitize
 import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.anime.model.AnimeUpdate
+import tachiyomi.domain.anime.model.AnimeRemoteUpdate
 import tachiyomi.domain.anime.repository.AnimeRepository
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.episode.repository.EpisodeRepository
@@ -37,6 +37,7 @@ class UpdateAnimeFromRemote(
     private val syncEpisodesWithSource: SyncEpisodesWithSource,
     private val syncSeasonsWithSource: SyncSeasonsWithSource,
     private val coverCache: CoverCache,
+    private val downloadManager: DownloadManager,
     // AM -->
     private val backgroundCache: BackgroundCache,
     private val thumbnailCache: ThumbnailCache,
@@ -127,6 +128,7 @@ class UpdateAnimeFromRemote(
         }
     }
 
+    // AM -->
     suspend fun awaitSeasonsUpdate(
         anime: Anime,
         fetchDetails: Boolean = false,
@@ -179,6 +181,7 @@ class UpdateAnimeFromRemote(
             Result.failure(e)
         }
     }
+    // <-- AM
 
     private suspend fun awaitUpdateFromSource(
         localAnime: Anime,
@@ -234,23 +237,32 @@ class UpdateAnimeFromRemote(
         val thumbnailUrl = remoteAnime.thumbnail_url?.takeIf { it.isNotEmpty() }
         val backgroundUrl = remoteAnime.background_url?.takeIf { it.isNotEmpty() }
 
-        return animeRepository.update(
-            AnimeUpdate(
+        val success = animeRepository.updateRemote(
+            AnimeRemoteUpdate(
                 id = localAnime.id,
                 title = title,
                 coverLastModified = coverLastModified,
-                backgroundLastModified = backgroundLastModified,
                 author = remoteAnime.author,
                 artist = remoteAnime.artist,
                 description = remoteAnime.description,
                 genre = remoteAnime.getGenres(),
                 thumbnailUrl = thumbnailUrl,
-                backgroundUrl = backgroundUrl,
                 status = remoteAnime.status.toLong(),
                 updateStrategy = remoteAnime.update_strategy,
                 initialized = true,
                 memo = remoteAnime.memo,
+                // AM -->
+                backgroundUrl = backgroundUrl,
+                backgroundLastModified = backgroundLastModified,
+                parentId = localAnime.parentId,
+                seasonNumber = remoteAnime.season_number,
+                seasonSourceOrder = localAnime.seasonSourceOrder,
+                // <-- AM
             ),
         )
+        if (success && title != null) {
+            downloadManager.renameAnime(localAnime, title)
+        }
+        return success
     }
 }

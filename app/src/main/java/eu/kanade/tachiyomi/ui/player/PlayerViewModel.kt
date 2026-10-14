@@ -789,7 +789,6 @@ class PlayerViewModel(
 
         return try {
             getAnime.await(animeId)?.let { anime ->
-                sourceManager.isInitialized.first { it }
                 val source = sourceManager.getOrStub(anime.source)
                 val incognito = getIncognitoState.await(anime.source)
 
@@ -888,31 +887,33 @@ class PlayerViewModel(
         val selectedEpisode = episodes.find { it.id == episodeId }
             ?: error("Requested episode of id $episodeId not found in episode list")
 
+        val source = stateData.value.currentSource ?: return
+
         val filtered = episodes.filterNot {
             (anime.unseenFilterRaw == Anime.EPISODE_SHOW_SEEN && !it.seen) ||
                 (anime.unseenFilterRaw == Anime.EPISODE_SHOW_UNSEEN && it.seen) ||
                 (
                     anime.downloadedFilterRaw == Anime.EPISODE_SHOW_DOWNLOADED &&
-                        !downloadManager.isEpisodeDownloaded(
+                        !downloadManager.isEpisodeDownloadedOnDisk(
                             it.name,
                             it.scanlator,
                             it.url,
                             // AM (CUSTOM_INFORMATION) -->
                             anime.ogTitle,
                             // <-- AM (CUSTOM_INFORMATION)
-                            anime.source,
+                            source,
                         )
                     ) ||
                 (
                     anime.downloadedFilterRaw == Anime.EPISODE_SHOW_NOT_DOWNLOADED &&
-                        downloadManager.isEpisodeDownloaded(
+                        downloadManager.isEpisodeDownloadedOnDisk(
                             it.name,
                             it.scanlator,
                             it.url,
                             // AM (CUSTOM_INFORMATION) -->
                             anime.ogTitle,
                             // <-- AM (CUSTOM_INFORMATION)
-                            anime.source,
+                            source,
                         )
                     ) ||
                 (
@@ -949,6 +950,7 @@ class PlayerViewModel(
             !episodeLoader.isDownload(
                 episode.toDomainEpisode()!!,
                 anime,
+                source,
             )
     }
 
@@ -3116,7 +3118,7 @@ class PlayerViewModel(
                     episode.isRecognizedNumber &&
                     episode.episode_number == currentEp.episode_number
                 ) {
-                    EpisodeUpdate(id = episode.id!!, seen = true)
+                    EpisodeUpdate(episode.id!!) { seen = true }
                 } else {
                     null
                 }
@@ -3167,14 +3169,13 @@ class PlayerViewModel(
         val stateData = stateData.value
         if (!stateData.incognitoMode || stateData.hasTrackers) {
             updateEpisode.await(
-                EpisodeUpdate(
-                    id = episode.id!!,
-                    seen = episode.seen,
-                    bookmark = episode.bookmark,
-                    fillermark = episode.fillermark,
-                    lastSecondSeen = episode.last_second_seen,
-                    totalSeconds = episode.total_seconds,
-                ),
+                EpisodeUpdate(episode.id!!) {
+                    seen = episode.seen
+                    bookmark = episode.bookmark
+                    fillermark = episode.fillermark
+                    lastSecondSeen = episode.last_second_seen
+                    totalSeconds = episode.total_seconds
+                },
             )
             // AM (SYNC) -->
             val isSyncEnabled = syncPreferences.isSyncEnabled()
@@ -3205,10 +3206,9 @@ class PlayerViewModel(
     fun bookmarkEpisode(episodeId: Long?, bookmarked: Boolean) {
         viewModelScope.launchNonCancellable {
             updateEpisode.await(
-                EpisodeUpdate(
-                    id = episodeId!!,
-                    bookmark = bookmarked,
-                ),
+                EpisodeUpdate(episodeId!!) {
+                    bookmark = bookmarked
+                },
             )
         }
     }
@@ -3219,10 +3219,9 @@ class PlayerViewModel(
     fun fillermarkEpisode(episodeId: Long?, fillermarked: Boolean) {
         viewModelScope.launchNonCancellable {
             updateEpisode.await(
-                EpisodeUpdate(
-                    id = episodeId!!,
-                    fillermark = fillermarked,
-                ),
+                EpisodeUpdate(episodeId!!) {
+                    fillermark = fillermarked
+                },
             )
         }
     }
@@ -3230,6 +3229,7 @@ class PlayerViewModel(
     private fun downloadNextEpisodes() {
         if (downloadAheadAmount == 0) return
         val anime = stateData.value.currentAnime ?: return
+        val source = stateData.value.currentSource ?: return
 
         val currentPlaylist = stateData.value.currentPlaylist
         val currentPlaylistIndex = stateData.value.currentPlaylistIndex
@@ -3240,8 +3240,8 @@ class PlayerViewModel(
 
         val nextEpisode = currentPlaylist[currentPlaylistIndex + 1]
         val episodesAreDownloaded =
-            episodeLoader.isDownload(currentEpisode.toDomainEpisode()!!, anime) &&
-                episodeLoader.isDownload(nextEpisode.toDomainEpisode()!!, anime)
+            episodeLoader.isDownload(currentEpisode.toDomainEpisode()!!, anime, source) &&
+                episodeLoader.isDownload(nextEpisode.toDomainEpisode()!!, anime, source)
 
         viewModelScope.launchIO {
             if (!episodesAreDownloaded) {

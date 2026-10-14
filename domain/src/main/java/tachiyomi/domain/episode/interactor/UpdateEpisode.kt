@@ -28,12 +28,13 @@ class UpdateEpisode(
         }
     }
 
+    // AM -->
     suspend fun awaitUpdateThumbnailLastModified(episodeId: Long) {
         episodeRepository.update(
-            EpisodeUpdate(
-                id = episodeId,
-                thumbnailLastModifiedAt = Clock.System.now().toEpochMilliseconds(),
-            ),
+            EpisodeUpdate(episodeId) {
+                thumbnailLastModifiedAt = Clock.System.now().toEpochMilliseconds()
+            },
         )
     }
+    // <-- AM
 }

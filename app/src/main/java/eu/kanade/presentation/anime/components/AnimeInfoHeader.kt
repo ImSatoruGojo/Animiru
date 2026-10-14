@@ -25,22 +25,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.AttachMoney
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Done
-import androidx.compose.material.icons.outlined.DoneAll
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -72,7 +56,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -91,12 +74,31 @@ import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.data.coil.useBackground
+import eu.kanade.tachiyomi.source.getNameForAnimeInfo
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import mihon.app.di.appGraph
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.AttachMoney
+import mihon.icons.materialsymbols.rounded.Block
+import mihon.icons.materialsymbols.rounded.Brush
+import mihon.icons.materialsymbols.rounded.CalendarClock
+import mihon.icons.materialsymbols.rounded.Close
+import mihon.icons.materialsymbols.rounded.Done
+import mihon.icons.materialsymbols.rounded.DoneAll
+import mihon.icons.materialsymbols.rounded.Favorite
+import mihon.icons.materialsymbols.rounded.HourglassEmpty
+import mihon.icons.materialsymbols.rounded.Pause
+import mihon.icons.materialsymbols.rounded.Person
+import mihon.icons.materialsymbols.rounded.Public
+import mihon.icons.materialsymbols.rounded.Schedule
+import mihon.icons.materialsymbols.rounded.Sync
+import mihon.icons.materialsymbols.rounded.Warning
+import mihon.icons.materialsymbols.roundedfilled.Favorite
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
@@ -120,7 +122,7 @@ fun AnimeInfoBox(
     isTabletUi: Boolean,
     appBarPadding: Dp,
     anime: Anime,
-    sourceName: String,
+    source: AnimeSource,
     isStubSource: Boolean,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
@@ -160,7 +162,7 @@ fun AnimeInfoBox(
                 AnimeAndSourceTitlesSmall(
                     appBarPadding = appBarPadding,
                     anime = anime,
-                    sourceName = sourceName,
+                    source = source,
                     isStubSource = isStubSource,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
@@ -169,7 +171,7 @@ fun AnimeInfoBox(
                 AnimeAndSourceTitlesLarge(
                     appBarPadding = appBarPadding,
                     anime = anime,
-                    sourceName = sourceName,
+                    source = source,
                     isStubSource = isStubSource,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
@@ -217,7 +219,7 @@ fun AnimeActionRow(
             } else {
                 stringResource(MR.strings.add_to_library)
             },
-            icon = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+            icon = if (favorite) MaterialSymbols.RoundedFilled.Favorite else MaterialSymbols.Rounded.Favorite,
             color = if (favorite) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategory,
@@ -232,7 +234,7 @@ fun AnimeActionRow(
                     nextUpdateDays,
                 )
             },
-            icon = Icons.Default.HourglassEmpty,
+            icon = MaterialSymbols.Rounded.HourglassEmpty,
             color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
             onClick = { onEditIntervalClicked?.invoke() },
         )
@@ -259,7 +261,7 @@ fun AnimeActionRow(
                     } else {
                         pluralStringResource(MR.plurals.num_trackers, count = trackingCount, trackingCount)
                     },
-                    icon = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
+                    icon = if (trackingCount == 0) MaterialSymbols.Rounded.Sync else MaterialSymbols.Rounded.Done,
                     color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
                     onClick = onTrackingClicked,
                 )
@@ -268,7 +270,7 @@ fun AnimeActionRow(
         if (onWebViewClicked != null) {
             AnimeActionButton(
                 title = stringResource(MR.strings.action_web_view),
-                icon = Icons.Outlined.Public,
+                icon = MaterialSymbols.Rounded.Public,
                 color = defaultActionButtonColor,
                 onClick = onWebViewClicked,
                 onLongClick = onWebViewLongClicked,
@@ -389,7 +391,7 @@ fun ExpandableAnimeDescription(
 private fun AnimeAndSourceTitlesLarge(
     appBarPadding: Dp,
     anime: Anime,
-    sourceName: String,
+    source: AnimeSource,
     isStubSource: Boolean,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
@@ -415,7 +417,7 @@ private fun AnimeAndSourceTitlesLarge(
             author = anime.author,
             artist = anime.artist,
             status = anime.status,
-            sourceName = sourceName,
+            source = source,
             isStubSource = isStubSource,
             doSearch = doSearch,
             textAlign = TextAlign.Center,
@@ -427,7 +429,7 @@ private fun AnimeAndSourceTitlesLarge(
 private fun AnimeAndSourceTitlesSmall(
     appBarPadding: Dp,
     anime: Anime,
-    sourceName: String,
+    source: AnimeSource,
     isStubSource: Boolean,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
@@ -458,7 +460,7 @@ private fun AnimeAndSourceTitlesSmall(
                 author = anime.author,
                 artist = anime.artist,
                 status = anime.status,
-                sourceName = sourceName,
+                source = source,
                 isStubSource = isStubSource,
                 doSearch = doSearch,
             )
@@ -472,7 +474,7 @@ private fun ColumnScope.AnimeContentInfo(
     author: String?,
     artist: String?,
     status: Long,
-    sourceName: String,
+    source: AnimeSource,
     isStubSource: Boolean,
     doSearch: (query: String, global: Boolean) -> Unit,
     textAlign: TextAlign? = LocalTextStyle.current.textAlign,
@@ -503,7 +505,7 @@ private fun ColumnScope.AnimeContentInfo(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Filled.PersonOutline,
+            imageVector = MaterialSymbols.Rounded.Person,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
         )
@@ -534,7 +536,7 @@ private fun ColumnScope.AnimeContentInfo(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Filled.Brush,
+                imageVector = MaterialSymbols.Rounded.Brush,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
             )
@@ -559,14 +561,14 @@ private fun ColumnScope.AnimeContentInfo(
     ) {
         Icon(
             imageVector = when (status) {
-                SAnime.ONGOING.toLong() -> Icons.Outlined.Schedule
-                SAnime.COMPLETED.toLong() -> Icons.Outlined.DoneAll
-                SAnime.LICENSED.toLong() -> Icons.Outlined.AttachMoney
-                SAnime.PUBLISHING_FINISHED.toLong() -> Icons.Outlined.Done
-                SAnime.CANCELLED.toLong() -> Icons.Outlined.Close
-                SAnime.ON_HIATUS.toLong() -> Icons.Outlined.Pause
-                SAnime.UPCOMING.toLong() -> ImageVector.vectorResource(R.drawable.ic_calendar_clock_24dp)
-                else -> Icons.Outlined.Block
+                SAnime.ONGOING.toLong() -> MaterialSymbols.Rounded.Schedule
+                SAnime.COMPLETED.toLong() -> MaterialSymbols.Rounded.DoneAll
+                SAnime.LICENSED.toLong() -> MaterialSymbols.Rounded.AttachMoney
+                SAnime.PUBLISHING_FINISHED.toLong() -> MaterialSymbols.Rounded.Done
+                SAnime.CANCELLED.toLong() -> MaterialSymbols.Rounded.Close
+                SAnime.ON_HIATUS.toLong() -> MaterialSymbols.Rounded.Pause
+                SAnime.UPCOMING.toLong() -> MaterialSymbols.Rounded.CalendarClock
+                else -> MaterialSymbols.Rounded.Block
             },
             contentDescription = null,
             modifier = Modifier
@@ -591,7 +593,7 @@ private fun ColumnScope.AnimeContentInfo(
             DotSeparatorText()
             if (isStubSource) {
                 Icon(
-                    imageVector = Icons.Filled.Warning,
+                    imageVector = MaterialSymbols.Rounded.Warning,
                     contentDescription = null,
                     modifier = Modifier
                         .padding(end = 4.dp)
@@ -600,12 +602,9 @@ private fun ColumnScope.AnimeContentInfo(
                 )
             }
             Text(
-                text = sourceName,
+                text = source.getNameForAnimeInfo(),
                 modifier = Modifier.clickableNoIndication {
-                    doSearch(
-                        sourceName,
-                        false,
-                    )
+                    doSearch(source.query(), false)
                 },
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
@@ -613,6 +612,8 @@ private fun ColumnScope.AnimeContentInfo(
         }
     }
 }
+
+private fun AnimeSource.query(): String = """src:"$name" lang:$lang""".takeIf { name.isNotBlank() } ?: "srcid:$id"
 
 @Composable
 private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = remember(loadImages, linkStyle) {

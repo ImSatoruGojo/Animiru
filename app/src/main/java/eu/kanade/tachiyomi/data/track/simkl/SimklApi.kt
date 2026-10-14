@@ -32,6 +32,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import tachiyomi.core.common.util.lang.withIOContext
 
 class SimklApi(
+    private val trackerId: Long,
     private val client: OkHttpClient,
     private val json: Json,
     interceptor: SimklInterceptor,
@@ -165,7 +166,7 @@ class SimklApi(
                     client.newCall(GET(url))
                         .awaitSuccess()
                         .parseAs<SimklDetails>()
-                        .toTrackSearch(type)
+                        .toTrackSearch(trackerId, type)
                 }
             } catch (_: MissingFieldException) {
                 null
@@ -189,7 +190,7 @@ class SimklApi(
                 client.newCall(GET(searchUrl.toString()))
                     .awaitSuccess()
                     .parseAs<List<SimklSearchResult>>()
-                    .map { it.toTrackSearch(type) }
+                    .map { it.toTrackSearch(trackerId, type) }
             }
         }
     }
@@ -236,7 +237,7 @@ class SimklApi(
                     } ?: return@withIOContext null
             }
 
-            listAnime.toTrack(typeName, type, status)
+            listAnime.toTrack(trackerId, typeName, type, status)
         }
     }
 

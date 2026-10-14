@@ -315,7 +315,7 @@ class LibraryViewModel(
         }
     }
 
-    private fun List<LibraryItem>.applyGrouping(
+    private suspend fun List<LibraryItem>.applyGrouping(
         categories: List<Category>,
         showSystemCategory: Boolean,
         // AM (GROUPING) -->
@@ -417,7 +417,7 @@ class LibraryViewModel(
                     anime1.libraryAnime.episodeFetchedAt.compareTo(anime2.libraryAnime.episodeFetchedAt)
                 }
                 LibrarySort.Type.DateAdded -> {
-                    anime1.libraryAnime.anime.dateAdded.compareTo(anime2.libraryAnime.anime.dateAdded)
+                    compareValues(anime1.libraryAnime.anime.favoriteAt, anime2.libraryAnime.anime.favoriteAt)
                 }
                 LibrarySort.Type.TrackerMean -> {
                     val item1Score = trackerScores[anime1.id] ?: defaultTrackerScoreSortValue
@@ -676,10 +676,9 @@ class LibraryViewModel(
                     // AY -->
                     it.removeBackgrounds(backgroundCache)
                     // <-- AY
-                    AnimeUpdate(
-                        favorite = false,
-                        id = it.id,
-                    )
+                    AnimeUpdate(it.id) {
+                        favoriteAt = null
+                    }
                 }
                 updateAnime.awaitAll(toDelete)
             }
@@ -863,7 +862,7 @@ class LibraryViewModel(
     }
 
     // AM (GROUPING) -->
-    private fun getGroupedItems(
+    private suspend fun getGroupedItems(
         groupType: Int,
         libraryAnime: List<LibraryItem>,
     ): Map<Category, List</* LibraryItem */ Long>> {

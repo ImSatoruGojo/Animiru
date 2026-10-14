@@ -102,7 +102,7 @@ import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.anime.interactor.SetAnimeSeasonFlags
 import tachiyomi.domain.anime.interactor.SetCustomAnimeInfo
 import tachiyomi.domain.anime.model.Anime
-import tachiyomi.domain.anime.model.AnimeUpdate
+import tachiyomi.domain.anime.model.AnimeRemoteUpdate
 import tachiyomi.domain.anime.model.AnimeWithEpisodeCount
 import tachiyomi.domain.anime.model.CustomAnimeInfo
 import tachiyomi.domain.anime.model.NoSeasonsException
@@ -198,8 +198,8 @@ class AnimeViewModel(
     // <-- AM (CUSTOM_INFORMATION)
 ) : ViewModel() {
 
-    val state: StateFlow<AnimeViewModel.State>
-        field = MutableStateFlow<AnimeViewModel.State>(State.Loading)
+    val state: StateFlow<State>
+        field = MutableStateFlow<State>(State.Loading)
 
     @AssistedFactory
     @ManualViewModelAssistedFactoryKey
@@ -553,17 +553,28 @@ class AnimeViewModel(
                 ogStatus = status ?: 0,
                 lastUpdate = anime.lastUpdate + 1,
             )
-            (sourceManager.get(LocalSource.ID) as LocalSource).updateAnimeInfo(anime.toSAnime())
             viewModelScope.launchNonCancellable {
-                updateAnime.await(
-                    AnimeUpdate(
+                (sourceManager.get(LocalSource.ID) as LocalSource).updateAnimeInfo(anime.toSAnime())
+                // TODO: clean this up
+                animeRepository.updateRemote(
+                    AnimeRemoteUpdate(
                         anime.id,
                         title = newTitle,
                         author = newAuthor,
                         artist = newArtist,
                         description = newDesc,
                         genre = tags,
-                        status = status,
+                        status = status ?: 0L,
+                        thumbnailUrl = anime.thumbnailUrl,
+                        updateStrategy = anime.updateStrategy,
+                        memo = anime.memo,
+                        initialized = anime.initialized,
+                        coverLastModified = anime.coverLastModified,
+                        backgroundUrl = anime.backgroundUrl,
+                        backgroundLastModified = anime.backgroundLastModified,
+                        parentId = anime.parentId,
+                        seasonNumber = anime.seasonNumber,
+                        seasonSourceOrder = anime.seasonSourceOrder,
                     ),
                 )
             }
@@ -880,7 +891,7 @@ class AnimeViewModel(
     }
 
     // AY -->
-    private fun List<SeasonAnime>.toAnimeSeasonItems(): List<AnimeSeasonItem> {
+    private suspend fun List<SeasonAnime>.toAnimeSeasonItems(): List<AnimeSeasonItem> {
         return map { seasonAnime ->
             AnimeSeasonItem(
                 seasonAnime = seasonAnime,
@@ -1207,7 +1218,7 @@ class AnimeViewModel(
      * Downloads the given list of episodes with the manager.
      * @param episodes the list of episodes to download.
      */
-    private fun downloadEpisodes(
+    private suspend fun downloadEpisodes(
         episodes: List<Episode>,
         // AY -->
         alt: Boolean = false,
@@ -1227,7 +1238,7 @@ class AnimeViewModel(
         viewModelScope.launchIO {
             episodes
                 .filterNot { it.bookmark == bookmarked }
-                .map { EpisodeUpdate(id = it.id, bookmark = bookmarked) }
+                .map { EpisodeUpdate(it.id) { bookmark = bookmarked } }
                 .let { updateEpisode.awaitAll(it) }
         }
         toggleAllSelection(false)
@@ -1243,7 +1254,7 @@ class AnimeViewModel(
         viewModelScope.launchIO {
             episodes
                 .filterNot { it.fillermark == fillermarked }
-                .map { EpisodeUpdate(id = it.id, fillermark = fillermarked) }
+                .map { EpisodeUpdate(it.id) { fillermark = fillermarked } }
                 .let { updateEpisode.awaitAll(it) }
         }
         toggleAllSelection(false)

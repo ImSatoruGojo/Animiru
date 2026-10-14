@@ -1,65 +1,20 @@
 package tachiyomi.domain.episode.model
 
-import kotlinx.serialization.json.JsonObject
+import mihon.domain.common.PartialUpdate
 
-data class EpisodeUpdate(
-    val id: Long,
-    val animeId: Long? = null,
-    val seen: Boolean? = null,
-    val bookmark: Boolean? = null,
-    // AY -->
-    val fillermark: Boolean? = null,
-    // <-- AY
-    val lastSecondSeen: Long? = null,
-    // AY -->
-    val totalSeconds: Long? = null,
-    // <-- AY
-    val dateFetch: Long? = null,
-    val sourceOrder: Long? = null,
-    val url: String? = null,
-    val name: String? = null,
-    val dateUpload: Long? = null,
-    val episodeNumber: Double? = null,
-    val scanlator: String? = null,
-    // AY -->
-    val summary: String? = null,
-    val previewUrl: String? = null,
-    // <-- AY
-    val version: Long? = null,
-    val memo: JsonObject? = null,
+class EpisodeUpdate(val id: Long, block: EpisodeUpdate.() -> Unit) : PartialUpdate() {
+    var seen: Boolean? by field(null)
+    var bookmark: Boolean? by field(null)
+    var lastSecondSeen: Long? by field(null)
+    var dateFetch: Long? by field(null)
+
     // AM -->
-    val thumbnailLastModifiedAt: Long? = null,
+    var fillermark: Boolean? by field(null)
+    var totalSeconds: Long? by field(null)
+    var thumbnailLastModifiedAt: Long? by field(null)
     // <-- AM
-)
 
-fun Episode.toEpisodeUpdate(): EpisodeUpdate {
-    return EpisodeUpdate(
-        id,
-        animeId,
-        seen,
-        bookmark,
-        // AY -->
-        fillermark,
-        // <-- AY
-        lastSecondSeen,
-        // AY -->
-        totalSeconds,
-        // <-- AY
-        dateFetch,
-        sourceOrder,
-        url,
-        name,
-        dateUpload,
-        episodeNumber,
-        scanlator,
-        // AY -->
-        summary,
-        previewUrl,
-        // <-- AY
-        version,
-        memo,
-        // AM -->
-        thumbnailLastModifiedAt,
-        // <-- AM
-    )
+    init {
+        block()
+    }
 }

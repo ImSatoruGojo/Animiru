@@ -4,6 +4,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.core.common.extensions.JsonObjectEmptyBytes
+import mihon.core.common.extensions.toByteArray
+import mihon.core.common.extensions.toJsonObject
 import tachiyomi.data.MemoColumnAdapter
 import tachiyomi.domain.episode.model.Episode
 
@@ -26,8 +28,8 @@ class BackupEpisode(
     // episodeNumber is called number is 1.x
     @ProtoNumber(9) var episodeNumber: Float = 0F,
     @ProtoNumber(10) var sourceOrder: Long = 0,
-    @ProtoNumber(11) var lastModifiedAt: Long = 0,
-    @ProtoNumber(12) var version: Long = 0,
+    // @ProtoNumber(11) var lastModifiedAt: Long, artifact of the abandoned sync attempt
+    // @ProtoNumber(12) var version: Long, artifact of the abandoned sync attempt
     @ProtoNumber(13) var memo: ByteArray = JsonObjectEmptyBytes,
 
     // AY -->
@@ -59,67 +61,31 @@ class BackupEpisode(
             dateFetch = this@BackupEpisode.dateFetch,
             dateUpload = this@BackupEpisode.dateUpload,
             sourceOrder = this@BackupEpisode.sourceOrder,
-            lastModifiedAt = this@BackupEpisode.lastModifiedAt,
-            version = this@BackupEpisode.version,
-            memo = MemoColumnAdapter.decode(this@BackupEpisode.memo),
+            memo = this@BackupEpisode.memo.toJsonObject(),
         )
     }
 }
 
-val backupEpisodeMapper = {
-        _: Long,
-        _: Long,
-        url: String,
-        name: String,
-        scanlator: String?,
-        seen: Boolean,
-        bookmark: Boolean,
-        // AY -->
-        fillermark: Boolean,
-        // <-- AY
-        lastSecondSeen: Long,
-        // AY -->
-        totalSeconds: Long,
-        // <-- AY
-        episodeNumber: Double,
-        sourceOrder: Long,
-        dateFetch: Long,
-        dateUpload: Long,
-        lastModifiedAt: Long,
-        version: Long,
-        _: Long,
-        // AY -->
-        summary: String?,
-        previewUrl: String?,
-        // <-- AY
-        memo: JsonObject,
-        // AM -->
-        _: Long,
-    // <-- AM
-    ->
-    BackupEpisode(
-        url = url,
-        name = name,
-        episodeNumber = episodeNumber.toFloat(),
-        scanlator = scanlator,
-        // AY -->
-        summary = summary,
-        previewUrl = previewUrl,
-        // <-- AY
-        seen = seen,
-        bookmark = bookmark,
-        // AY -->
-        fillermark = fillermark,
-        // <-- AY
-        lastSecondSeen = lastSecondSeen,
-        // AY -->
-        totalSeconds = totalSeconds,
-        // <-- AY
-        dateFetch = dateFetch,
-        dateUpload = dateUpload,
-        sourceOrder = sourceOrder,
-        lastModifiedAt = lastModifiedAt,
-        version = version,
-        memo = MemoColumnAdapter.encode(memo),
-    )
-}
+fun Episode.toBackupEpisode() = BackupEpisode(
+    url = url,
+    name = name,
+    episodeNumber = episodeNumber.toFloat(),
+    scanlator = scanlator,
+    // AY -->
+    summary = summary,
+    previewUrl = previewUrl,
+    // <-- AY
+    seen = seen,
+    bookmark = bookmark,
+    // AY -->
+    fillermark = fillermark,
+    // <-- AY
+    lastSecondSeen = lastSecondSeen,
+    // AY -->
+    totalSeconds = totalSeconds,
+    // <-- AY
+    dateFetch = dateFetch,
+    dateUpload = dateUpload,
+    sourceOrder = sourceOrder,
+    memo = memo.toByteArray(),
+)
