@@ -29,10 +29,8 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okio.Throttler
-import tachiyomi.core.common.util.system.createFileInCacheDir
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.download.service.DownloadPreferences
-import java.io.BufferedReader
 import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -370,6 +368,11 @@ class VideoDownloader(
         return when (trackResult) {
             is TrackResult.Url -> {
                 val url = trackResult.url
+                if (url.startsWith("file")) {
+                    progress.report(1f)
+                    return "-i \"$url\""
+                }
+
                 val type = getType(url, headers)
 
                 when (type) {
@@ -438,9 +441,36 @@ class VideoDownloader(
     }
 
     private suspend fun getType(url: String, headers: Headers): DownloadType {
+        return when {
+            url.startsWith("http") -> getHttpType(url, headers)
+            else -> getFileType(url)
+        }
+    }
+
+    private fun getFileType(url: String): DownloadType {
+        if (url.endsWith(".m3u8")) return DownloadType.Hls
+        if (url.endsWith(".mpd")) return DownloadType.Dash
+        if (url.endsWith(".vtt") || url.endsWith(".ass")) return DownloadType.Direct
+
+        val file = UniFile.fromUri(context, url.toUri())?.openInputStream()?.use { input ->
+            val bytes = ByteArray(1024)
+            val n = input.read(bytes, 0, bytes.size)
+            val text = String(bytes, 0, n, Charsets.UTF_8).trim()
+
+            when {
+                text.startsWith("#EXTM3U") -> return DownloadType.Hls
+                text.startsWith("<") && text.contains("<MPD") -> return DownloadType.Dash
+            }
+        }
+
+        return DownloadType.Direct
+    }
+
+    private suspend fun getHttpType(url: String, headers: Headers): DownloadType {
         val path = url.toHttpUrl().encodedPath
         if (path.endsWith(".m3u8")) return DownloadType.Hls
         if (path.endsWith(".mpd")) return DownloadType.Dash
+        if (url.endsWith(".vtt") || url.endsWith(".ass") || url.endsWith(".mkv")) return DownloadType.Direct
 
         val headHeaders = headers.newBuilder().set("Connection", "close").build()
         val contentType = client.head(url, headHeaders).use {
@@ -496,7 +526,7 @@ class VideoDownloader(
         destDir.findFile("$filename.tmp")?.delete()
         val videoFile = destDir.createFile("$filename.tmp")!!
 
-        val duration = getDuration(videoInput)
+        val duration = getDuration(downloadDir, videoInput)
         download.progress = 0
 
         val ffmpegFilename = videoFile.uri.toFFmpegString(context)
@@ -533,7 +563,11 @@ class VideoDownloader(
                         videoFile.renameTo("$filename.mkv")
                         continuation.resume(it)
                     } else {
-                        continuation.resumeWithException(Exception("Error in ffmpeg!"))
+                        continuation.resumeWithException(
+                            Exception(
+                                "ffprobe failed code=${it.returnCode} output=${it.output} logs=${it.allLogsAsString} fail=${it.failStackTrace}",
+                            ),
+                        )
                     }
                 },
                 logCallback,
@@ -595,9 +629,9 @@ class VideoDownloader(
         "-metadata:s:$type:$i \"title=${track.name}\""
     }.joinToString(" ")
 
-    private suspend fun getDuration(ffmpegInput: String): Float? {
-        val durationFile = context.createFileInCacheDir("dl_ffprobe_duration.txt")
-        val durationFilePath = durationFile.toUri().toFFmpegString(context)
+    private suspend fun getDuration(destDir: UniFile, ffmpegInput: String): Float? {
+        val durationFile = destDir.createFile("ffprobe_duration.txt")!!
+        val durationFilePath = durationFile.toFFmpegString(context)
 
         val ffprobeCommand = FFmpegKitConfig.parseArguments(
             listOf(
@@ -608,17 +642,28 @@ class VideoDownloader(
         )
 
         suspendCancellableCoroutine { continuation ->
-            val session = FFprobeKit.executeWithArgumentsAsync(ffprobeCommand) {
-                if (it.returnCode.isValueSuccess) {
-                    continuation.resume(it)
-                } else {
-                    continuation.resumeWithException(Exception(it.output))
-                }
-            }
+            val session = FFprobeKit.executeWithArgumentsAsync(
+                ffprobeCommand,
+                {
+                    if (it.returnCode.isValueSuccess) {
+                        continuation.resume(it)
+                    } else {
+                        continuation.resumeWithException(
+                            Exception(
+                                "ffprobe failed code=${it.returnCode} output=${it.output} logs=${it.allLogsAsString} fail=${it.failStackTrace}",
+                            ),
+                        )
+                    }
+                },
+            )
             continuation.invokeOnCancellation { session.cancel() }
         }
 
-        return durationFile.bufferedReader().use(BufferedReader::readText).trim().toFloatOrNull()
+        return durationFile.openInputStream().use {
+            it.readBytes().toString(Charsets.UTF_8)
+                .trim()
+                .toFloatOrNull()
+        }
     }
 
     companion object {
