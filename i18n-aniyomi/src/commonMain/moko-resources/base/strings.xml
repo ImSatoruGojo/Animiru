@@ -614,4 +614,6 @@
     <string name="pref_download_fillermarked_items">Allow downloading of fillermarked episodes</string>
     <string name="show_episode_previews">Episode thumbnails</string>
     <string name="show_episode_summaries">Episode summaries</string>
+    <string name="pref_hold_to_speed">Hold to speed up</string>
+    <string name="pref_hold_to_speed_summary">Hold the video to play at 2x speed, then release to restore the previous speed</string>
 </resources>
