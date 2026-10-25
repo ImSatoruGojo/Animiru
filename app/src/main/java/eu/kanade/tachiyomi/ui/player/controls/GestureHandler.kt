@@ -141,18 +141,24 @@ fun GestureHandler(
                             isDoubleTapSeeking = false
                         }
                         interactionSource.emit(press)
-                        tryAwaitRelease()
-                        if (isHoldingToSpeed) {
-                            viewModel.setPropertyFloat(
-                                "speed",
-                                speedBeforeHold ?: playerPreferences.playerSpeed.get(),
-                            )
-                            isHoldingToSpeed = false
-                            speedBeforeHold = null
+                        // AM (KUMO_HOLD_TO_SPEED) -->
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            // Always restore the pre-hold speed, even if the gesture is cancelled.
+                            if (isHoldingToSpeed) {
+                                viewModel.setPropertyFloat(
+                                    "speed",
+                                    speedBeforeHold ?: playerPreferences.playerSpeed.get(),
+                                )
+                                isHoldingToSpeed = false
+                                speedBeforeHold = null
+                            }
+                            if (isLongPressing) {
+                                isLongPressing = false
+                            }
                         }
-                        if (isLongPressing) {
-                            isLongPressing = false
-                        }
+                        // <-- AM (KUMO_HOLD_TO_SPEED)
                         interactionSource.emit(PressInteraction.Release(press))
                     },
                     onLongPress = {
