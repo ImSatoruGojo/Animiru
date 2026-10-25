@@ -57,4 +57,10 @@ class GesturePreferences(
         "pref_media_next",
         SingleActionGesture.Switch,
     )
+
+    // Hold-to-speed-up gesture
+    val holdToSpeed: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_hold_to_speed",
+        false,
+    )
 }
