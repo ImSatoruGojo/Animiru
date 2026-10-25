@@ -61,6 +61,6 @@ class GesturePreferences(
     // Hold-to-speed-up gesture
     val holdToSpeed: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_hold_to_speed",
-        false,
+        true,
     )
 }
