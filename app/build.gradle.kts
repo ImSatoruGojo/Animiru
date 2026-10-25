@@ -26,7 +26,7 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "xyz.Quickdev.Animiru.mi"
+        applicationId = "xyz.quickdev.kumo.mi"
 
         versionCode = 153
         versionName = "0.20.0.1"
