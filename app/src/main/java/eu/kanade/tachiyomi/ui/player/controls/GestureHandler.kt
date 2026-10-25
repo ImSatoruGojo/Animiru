@@ -70,6 +70,7 @@ fun GestureHandler(
     val gestureVolumeBrightness by gesturePreferences.gestureVolumeBrightness.collectAsState()
     val swapVolumeBrightness by gesturePreferences.swapVolumeBrightness.collectAsState()
     val showSeekbar by gesturePreferences.showSeekBar.collectAsState()
+    val holdToSpeed by gesturePreferences.holdToSpeed.collectAsState()
     val volumeBoostingCap by audioPreferences.volumeBoostCap.collectAsState()
 
     val uiData by viewModel.uiData.collectAsStateWithLifecycle()
@@ -79,9 +80,12 @@ fun GestureHandler(
     val position by viewModel.propFlow<Int>("time-pos").collectAsStateWithLifecycle()
     val duration by viewModel.propFlow<Int>("duration").collectAsStateWithLifecycle()
     val currentMPVVolume by viewModel.propFlow<Int>("volume").collectAsStateWithLifecycle()
+    val currentPlaybackSpeed by viewModel.propFlow<Float>("speed").collectAsStateWithLifecycle()
 
     var isDoubleTapSeeking by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
+    var isHoldingToSpeed by remember { mutableStateOf(false) }
+    var speedBeforeHold by remember { mutableStateOf<Float?>(null) }
 
     LaunchedEffect(playbackData.doubleTapSeekAmount) {
         delay(800.milliseconds)
@@ -138,6 +142,14 @@ fun GestureHandler(
                         }
                         interactionSource.emit(press)
                         tryAwaitRelease()
+                        if (isHoldingToSpeed) {
+                            viewModel.setPropertyFloat(
+                                "speed",
+                                speedBeforeHold ?: playerPreferences.playerSpeed.get(),
+                            )
+                            isHoldingToSpeed = false
+                            speedBeforeHold = null
+                        }
                         if (isLongPressing) {
                             isLongPressing = false
                         }
@@ -148,8 +160,14 @@ fun GestureHandler(
                         if (!isLongPressing) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             isLongPressing = true
-                            viewModel.pause()
-                            viewModel.setSheet(Sheets.Screenshot)
+                            if (holdToSpeed) {
+                                speedBeforeHold = currentPlaybackSpeed ?: playerPreferences.playerSpeed.get()
+                                isHoldingToSpeed = true
+                                viewModel.setPropertyFloat("speed", 2f)
+                            } else {
+                                viewModel.pause()
+                                viewModel.setSheet(Sheets.Screenshot)
+                            }
                         }
                     },
                 )
