@@ -74,6 +74,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val defaultSkipIntroLength by gesturePreferences.defaultIntroLength.stateIn(scope).collectAsState()
         val skipLengthPreference = gesturePreferences.skipLengthPreference
         val playerSmoothSeek = gesturePreferences.playerSmoothSeek
+        val holdToSpeed = gesturePreferences.holdToSpeed
 
         var showDialog by rememberSaveable { mutableStateOf(false) }
         if (showDialog) {
@@ -120,6 +121,11 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     preference = playerSmoothSeek,
                     title = stringResource(AYMR.strings.pref_player_smooth_seek),
                     subtitle = stringResource(AYMR.strings.pref_player_smooth_seek_summary),
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = holdToSpeed,
+                    title = stringResource(AYMR.strings.pref_hold_to_speed),
+                    subtitle = stringResource(AYMR.strings.pref_hold_to_speed_summary),
                 ),
             ),
         )
